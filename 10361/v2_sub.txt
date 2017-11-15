@@ -1,0 +1,2 @@
+Ranking	Submission	Run Time	Language	Submission Date
+1569	8010284		0.004		ANSI C		2010-06-01 15:27:33

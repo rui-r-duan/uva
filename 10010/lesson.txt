@@ -1,0 +1,7 @@
+1. Because in the search there are many char comparisons, it's best to make
+the comparison as trivial as possible.  The best solution is to convert the
+input letter grid to lower case.
+
+2. In order to avoid border checking, we usually extend the region and fill the
+unused data (dummy data) in the extended region, thus the dummy data can be
+used along with the real data in the uniform procedure.

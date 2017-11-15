@@ -1,0 +1,1283 @@
+-*- mode: org; fill-column: 79 -*-
+
+* Application and extension
+
+** Differences
+The main difference between Brew MP extensions and applications is that classes
+in an extension must expose their virtual function tables to the other external
+classes.
+
+An application can create an instance of a class in the extension by calling
+IShell_CreateInstance() or IEnv_CreateInstance().
+
+** Application
+Applications are hosted inside specialized application processes and are
+controlled by an application dispatcher mechanism that governs the application
+life cycle including the following:
+1. Startup
+2. Event & notification processing
+3. Suspend / resume
+4. Shutdown
+
+** Extension
+Extensions are defined as software packages or modules that contain non-applet
+classes, which means that those classes can be *in-process classes* or *service
+classes*.  Both in-process and service classes expose public APIs
+(interfaces).
+An *in-process class* can be thought of as code extension of the caller.
+A *service class* can be thought of as background system process providing
+access to unique functionality.
+
+** Service
+Brew MP exposes most of its own functionality by way of *system services*.
+Leveraging the *stubs and skeleton transport model*, service classes can either
+run in the *kernel process* or as *isolated user mode process*.
+
+** Stubs and skeleton transport model
+
+** Kernel process
+
+** User mode process
+
+* Brew MP architecture
+
+** Four core layers
+
+*** OS Services
+Abstracts kernel and memory management, provides component management, process,
+and security across the platform.  Provides portability to both Qualcomm and
+non-Qualcomm chipsets.
+
+*** Platform Services
+Modem, multimedia, and general service features, and is also the layer where
+Brew MP APIs reside.
+
+*** Application Environment
+Provides the foundation for applications running on Brew MP.  Supports
+application services such as Flash, Lua, TrigML, Widgets(BUIW), and window
+manager.
+
+*** Applications
+Can be developed in C/C++, Flash, TrigML, and Java.
+
+** The Brew MP application model is event-driven
+Brew MP applications respond to events sent from the operating system.  Brew MP
+applications do not contain a main program loop; all inputs is received through
+events.
+This model provides for clean, efficient execution with minimum demand on
+system resources and simple, task-based development.
+
+*** Key components of Brew MP application architecture
+1. interfaces
+2. classes
+3. modules
+
+* Qualcomm Component Model (QCM)
+QCM is a software model in which software is built as components.
+
+** My comments
+Its main purpose is to support *extensibility*.
+It is very smililar to Microsoft COM.
+
+** QCM consists of
+1. interfaces
+2. classes
+3. components
+4. modules
+
+** What is the advantage of QCM?
+1. Establishes a _contract_ and _specification_ between providers of services and
+   their users.
+2. Seperates the _specification_ and _implementation_ of the services.
+3. Enables the users and the providers of the services to _undergo changes_
+   without breaking each other.
+4. Enables services to be _dynamically discovered and created_.
+
+* Interfaces
+A contract and specification between an implementing class and its using
+client.
+Identified by unique 32-bit *AEEIIDs*, included in the interface definition.
+
+** What does interfaces do to ensure PLATFORM COMPATIBILITY and SECURITY?
+Brew MP enfoces strict rules for interface construction, naming, and life
+cycle.
+
+** How are APIs exposed?
+By modules as objects associated with interfaces and classes.
+
+** Two kinds of interfaces
+1. *Interfaces that use dynamic binding*: true run-time interfaces that conform
+   to QCM.  These interfaces are commonly refered to as QCM interfaces.
+2. *Static APIs*: conventional C APIs resolved during the link step of the
+   build.
+
+** Defining interfaces in IDL (Interface Definition Language)
+A key feature of Brew MP.
+Support interfaces across languages and environments.
+
+*** My comments
+General idea is to use IDL to create high level specifications for interfaces
+that then can be *mapped* to many other languages.
+
+*** What does IDL mechanism do?
+1. Describes interfaces in a clean and concise manner.
+2. Automates correct header file generation across languages.
+3. Enforces rules to simplify development of inter-process code.  Brew MP also
+   provides a compiler to auto-generate proxies.
+4. Enables interpreted environments by way of *auto-generated language-specific
+   procies* , avoiding the need to define and implement protocols for each area
+   of functionality.
+
+*** Brew MP IDL
+Based on OMG (CORBA) IDL with some specific omissions and additions.
+Current support C/C++ and Lua.  ActionScript (future)
+
+*** Tool
+QIDL
+
+* Classes
+A user-defined type that encapsulates data and behavior (i.e. functions) to
+provide implementation of one or more interfaces it exposes.
+Identified by unique 32-bit *AEECLSIDs*.
+The AEECLSIDs supported _by_ a module are specified in the module's Module
+Information File (MIF).
+
+** C/C++ programs in Brew MP implement three types of Brew MP classes:
+1. applet classes
+2. in-process classes
+3. service classes
+
+| Brew MP class    | Supporting     | Applicable Brew | Supporting            |
+| types            | module formats | MP module types | IDE Wizards           |
+|------------------+----------------+-----------------+-----------------------|
+| Applet class     | MOD or MOD1    | Application     | Application (applet   |
+|                  |                |                 | class)                |
+| In-Process class | MOD or MOD1    | Applicaation or | Extension (in-process |
+|                  |                | extension       | class)                |
+| Service class    | MOD1           | Application or  | n/a                   |
+|                  |                | extension       |                       |
+
+
+** A component can have multiple interfaces.
+   A class can contain one or more interfaces.
+
+** Two common mechanisms for creating instances of a class with QCM interfaces
+
+*** Use the component infrastructure
+Classes with QCM interfaces may register (or advertise) with the component
+infrastructure.  These classes are typically identified by 32 bit unique
+ClassIDs.  Use IEnv_CreateInstance(), or ISHELL_CreateInstance() if the class
+has access to the IShell object.
+
+*** Use a factory class
+These classes have interfaces that output instances of another class.
+A factory class is typically used to express the additional initialization
+parameters to make an object.
+
+*** Classes with static APIs are instantiated by directly invoking their ctor.
+
+** Non-applet classes: *in-process class* and *service class*
+Instantiated using ClassID via IEnv_CreateInstance() or
+ISHELL_CreateInstance().
+
+Released via the Release() method exposed by the class.
+
+When a non-applet class is instantiated, the default interface is returned to
+the caller and the caller can use the QueryInterface() method exposed by the
+class to discover other interfaces supported by the class.
+
+** Applet class
+Implement IApplet and are identified, dynamically discovered, and instantiated
+using a unique Applet ID.
+
+*** Execution context
+Applet classes are IShell-dependent classes; they can only be instantiated
+inside BREW Shell.
+
+*** Declaration
+The applet class is declared via the *Applet primitive* in the CIF.
+
+Example:
+Applet {
+  appletid = AEECLSID_MyApplet,
+  resbaseid = 20,
+  applethostid = 0,
+  privs = { AEEPRIVID_UDP_NET_URGENT, AEEPRIVID_FS_FULL_READ },
+  type = 0,
+  flags = 0,
+  newfunc = MyApplet_New,
+}
+
+MyApplet_New is the constructor of the applet class written in C/C++ code, and
+is invoked when the applet is started by ISHELL_StartApplet() using
+AEECLSID_MyApplet.
+
+newfunc is explicitly specified in the CIF for MOD1 files.  For MOD files, the
+constructor is set up by helper files such as AEEModGen.c.
+
+applethostid = 0 indicates that the applet class is started in the kernel
+process.
+
+** In-process class
+In-process classes are non-applet classes that service the caller's request in
+the caller's process.
+
+In Brew MP, all classes with *static APIs* are in-process classes with respect
+to the user.
+
+Most *BREW APIs* are implemented as in-process classes.  These classes use the
+permissions and quota limits of the caller to access resources.
+
+*** Execution context
+In-process classes are usually contained in extensions in Brew MP, and can be
+thought of as code extensions for the caller.
+
+The in-process object is created inside the Env of the caller and its methods
+invoked by the caller result in direct function calls.
+
+The class is instantiated in the same process (or more accurately, the Env) of
+the caller.
+
+*** Can be singleton
+It shares the same privileges as the caller, and if created as singleton, there
+exists only one instance of the class in the Env of the caller.
+
+*** Declaration
+In-process classes that provide QCM interfaces can be registered with the
+component infrastructure using the *Class primitive* in the CIF.
+
+Example:
+Class {
+  classid = AEECLSID_MyClass,
+  newfunc = MyClass_New,
+}
+
+MyClass_New is the constructor of the in-process class written in C/C++ code
+and is invoked when the class is instantiated by ISHELL_CreateInstance() or
+IEnv_CreateInstance() on AEECLSID_MyClass.
+
+newfunc is explicitly specified in CIF for MOD1 files.  For MOD files, the
+constructor is set up by the helper files, e.g. AEEModGen.c.
+
+** Service class
+Service classes are non-applet classes that service the caller's request in
+designated process.  Similar to a Windows service or Unix daemon running in the
+background.
+
+Service classes are introduced in BREW 4.x and Brew MP, and are only supported
+in MOD1.
+
+Most *Brew MP APIs* are implemented as service classes, whereas most *BREW
+APIs* are in-process classes.
+
+*** Execution context
+A service class is essentially a code extension (to an applet) that is
+instantiated and executed outside the application context and outside the BREW
+Shell (or thread).  The execution context for service classes can either be the
+kernel process or a server process, which is statically specified in the CIF of
+the containing module.
+
+A server process provides a separate execution context other than the BREW
+application (or applet) context.
+
+Created in the designated process (kernel or server process).
+
+It can only be created in the Env of the process outside the BREW Shell and
+therefore any service implementation or classes it uses cannot use the IShell
+interface.  In Brew MP, a service class cannot use *static APIs* such as
+IShell.
+
+*** remote invocation
+In Brew MP, any communication across the boundary of an execution context has
+to be performed through a remote invocation mechanism (invoked via a stub and
+skeleton code).  Since a service class is always instantiated outside the
+application context, all calls from an applet to a service object are remote
+invocations.
+
+*** Declaration
+Service classes that provide QCM interfaces can be registered with the
+component infrastructure using the *Service primitive* in the CIF.
+
+Example
+
+Service {
+  serviceid = AEECLSID_MyService,
+  iid       = AEEIID_MyService,
+  serverid  = 0,  -- instantiated in the kernel process
+  required_privs = {0},
+  servedclassid = AEECLSID_MyClass,
+}
+class {
+  classid = AEECLSID_MyClass,
+  newfunc = MyClass_New,
+}
+
+*** Privileges and function call type (direct or remote)
+The privileges for a service object come from the hosting process.
+
+Methods invoked by a caller from the same Env result in direct function calls.
+
+Methods invoked by a caller from a different Env result in remote invocations.
+
+*** Can be singleton
+If the service object is created as a singleton, there is only one instance of
+the class in the entire system.
+
+*** Uses of service classes
+
+**** Enable privilage separation and better security
+Its own set of privileges.  A service class acquires privileges from its
+hosting environment (the kernel process or a server process).  Each service
+class can also specify the privileges the caller must process to access the
+service.
+More granular privileges or access policies can also be enforced with the use
+of *IPrivSet* in the service class.
+
+See "OS Services Technology Guide for Manufactures".
+
+**** Promote higher fault tolerance
+In legacy BREW, only a single process environment in which there is only one
+BREW Shell (or thread) in the process that hosts all applets and extension
+objects.  Applets have unrestricted access to memory and resources.
+
+When a service class is instantiated in a separate server process, the Brew MP
+operating system and any applets that call the service are protected from any
+potential faults or crashes that may be caused by the service object.
+
+**** Can make use of pre-emptive multithreading
+Because service classes are instantiated outside the BREW Shell (a
+singlt-threaded application environment).  For an application to make use of
+pre-emptive multithreading, the portion of the functionality that needs to be
+preemptively multithreaded should be separated from the applet class and
+implemented in a service class.
+
+See "Using IThread1".
+
+**** Enable data and resource sharing between applications
+Each application runs in its own context (*protection domain*) and data or
+resources allocated by one application cannot be directly accessed by another
+application.
+
+To share data between applications, a singleton service class can be used.
+The singleton service is single point of contact for managing and controlling
+access to data and can provide interfaces to allow data to be shared between
+applications.
+
+*** Directly Remotable Interface (DRI)
+Service classes publish QCM interfaces that meet remotable criteria, also
+refered as DRI.
+
+DRIs are interfaces for which a remote invocation framework can marshal data
+and objects on the invocations across the *domain boundaries*.
+
+Examples of *domains* are processes, processors, virtual machines, etc.
+
+Remotability must be maintained for any service implementation, since the
+caller cannot reside in the same *protection domain* (Env) as the service
+object.
+
+**** Remote invocations
+The remote invocations involve data marshaling and unmarshaling by the *stub*
+and *skeleton* code.
+
+If the invocations need to go across *process boundaries*, a transport layer to
+bridge the *stub* and *skeleton* code is also involved.
+
+** Class resolution in Brew MP
+MIF lists supported ClassIDs and class system privileges.
+
+Module contains the impelmentation (the classes) of the interface.
+
+The system populates the ClassID to the module table upon startup.
+
+Kernel process maintains a table { mif, classid, module } that is used to
+resolve classes.
+
+When CreateInstance() is invoked, the system resolves the class, locates the
+module that contains the class, loads the module, and instantiates the class, and
+the pointer to the instance of the class is returned to the caller.
+
+** Remote invocations
+A remote invocation is a mechanism that allows a client to invoke an object in
+a different *execution and protection domain*, such as a process, virtual
+machine, or CPU.
+
+*** Stub
+A proxy that is called by clients and passes invocations to a transport layer.
+
+*** Skeleton
+A proxy that receives invocations from a transport layer and calls an object.
+
+*** Remotability
+An object needs to support interfaces that are *remotable* in order to be able
+to be remotely invoked.
+
+The remotability of an interface relies on the availability of the *proxy code*
+associated with the interface to marshal and unmarshal the data and requests
+going across protection boundaries.  Such proxy code in Brew MP consists of
+stub and skeleton code.
+
+If the protection domains that separate the client and the object are processes
+or processors, there is also a *transport layer* that bridges the communications
+between the stub and the skeleton.
+
+*** Remote invocation pre-conditions
+The caller does not need to know where the actual object is created and
+invoked.  For the caller, invoking and object in a different process is no
+different from invoking an object within the same process.
+
+Any invocations across protection boundaries need to be granted; the caller
+need to have sufficient rights or privileges to access the objects.
+
+* Components and modules
+Brew MP is a component-based framework.
+
+** Components
+A component is a logical concept of one or more classes that are self-contained
+and allow for dynamic linkability and inter-changability at the binary level.
+
+Static libraries don't qualify as a component.
+
+A component can't have other external static dependencies.  Software within a
+component can be tightly coupled and statically dependent on one another.
+
+** Modules
+Brew MP modules are the fundamental unit of code loading.
+
+A module is an executable binary file that consists of one or more components
+compiled into a single image.
+
+The module is a single point of entry for the AEE shell to request classes
+owned by the module.
+
+They can be statically linked (.lib), or stored in the file system (EFS) as
+dynamically loaded modules (see .mod, .mod1).
+
+(1) All dynamic modules are digitally signed.
+(2) Dynamic modules are loaded into RAM when needed and unloaded when no longer
+in use.
+
+Each module can contain implementations for one or more classes, and must have
+a corresponding MIF associated with it.
+
+* Runtime environment
+
+** Runtime configuration
+A number of *user processes* hosting various applications and services,
+a single *kernel process* hosting the component infrastructure and privileged
+services.
+
+** How to provide additional services?
+
+(1) Provide the utility as an in-process object.  e.g. a software JPEG decoder.
+
+(2) Provide the utility as a Brew MP service, an advertised remote object.
+e.g. a hardware JPEG decoder.  A *server* is a process that hosts advertised
+objects.  A *service resource* identifies which server hosts the object, which
+class should be used to instantiate the object in that host process, and any
+privileges that are required to access the service.
+
+** Environments
+In Brew MP, an environment (or Env) establishes an execution domain (or
+context) for each object in the system.
+
+Every object in the system reside in an Env.  Objects residing in the same Env
+are considered local to each other and can be invoked and accessed directly
+from each other.  They share the same privileges and access the same singleton
+instance created in the save Env.
+
+Env manifests itself as an object that supports IEnv.
+
+When a class receives an IEnv pointer, it is the object that the IEnv pointer
+points to that determines the *execution domain* for the object of the class.
+
+A process can contain multiple applets.
+Each process has its own Env.  (I call this *process Env*)
+Each applet has its own Env, with its own privileges. (I call this *applet Env*)
+
+The *applet Env* determines the *execution domain* for an applet.
+
+The *memory protection domain* is established by the *process Env* in which the
+applet resides.  Applets in the same process still share the *heap memory* in
+the memory *protection domain*.  (I see, here an applet behaves like a thread)
+
+** System process model
+A *Brew MP process* defines the set of rights and restrictions for the
+execution of the code it governs to access memory or other resources.
+
+*Threads* live in processes, and code executing in a thread is limited in its
+access to memory and kernel services according to the process in which it
+lives.
+
+All operating system services of Brew MP are represented by
+objects. e.g. critical section functionality is provided via an object that
+implements the ICritSect interface.
+
+The kernel enforces that user processes can only access objects that they have
+been granted.  The kernel does not decide to whom the objects are granted, nor
+does it dictate what the objects can do.  The kernel, therefore enforces the
+_mechanism_, and not the _policy_.
+
+The protection domain and rights of a process are maintained via its Env.
+
+The Brew MP system process model transparently supports memory-protected
+(multi-process), non-memory-protected (single-process), single processor and
+dual processor implementations.
+
+There are two kinds of processes in which Brew MP objects can reside, the
+*kernel process* and the *user process*.
+
+In Brew MP, a running system consists of threads executing in the kernel and
+some number of user processes.
+
+*** Kernel process
+It's a singleton on a Brew MP device.
+
+The Brew MP kernel process is a privileged execution environment that can
+access all memroy, controls user processes, enforces privileges, and controls
+process interaction.
+
+It is the utmost privileged process that governs all the user processes and
+enforces their rights to access memory and resources.
+
+It stores data structures that keep track of the *object references* held by
+each process.
+
+An *object table* is maintained for each remote object used by a process.  By
+governing which remote objects the process can invoke or pass to other
+processes, the object table enables the system to perform cleanup when the
+process is killed.
+
+The kernel process also hosts critical system services.
+
+*** User process
+A Brew MP user process is a confined execution environment that can only access
+memory and system (kernel) resources (files, devices, etc.), for which the
+process has been granted access.
+
+User processes do not have any inherent authority over the system.  They only
+have objects they have been granted, and all kernel requests operate on
+objects.
+
+**** Two types depending on the type of classes they host
+
+(1) *BREW process* - (supported in future versions of Brew MP) maintains a BREW
+Shell that hosts only BREW applets as well as any objects the applets created
+in-process.
+
+(2) *Server process* - only hosts service objects.
+
+**** Pre-emptive threads
+
+Brew MP supports pre-emptive threads whose memory and service access is
+governed by their host process.
+
+**** Services that are invoked between processes
+Transparently invoked by way of remote invocations (through generic stubs and
+skeletons).  This mechanism allows caller and service implementation code to
+remain constant across single process, multi-process, and multi-processor
+environments.
+
+** Registry support
+Brew MP provides a system-wide registry, which associates interface and classes
+with string-based registry keys.
+
+Common uses include multimedia and network protocol handlers (.jpg, .png,
+.http, etc.).
+
+Searches are qualified by an associated interface (AEEIID), which enforces
+returning classes (AEECLSIDs) that map to  the expected definition.  The
+queries can be made via ISHELL_GetHandler().
+
+The system registry is generally populated at startup with registry entries
+specified in the digitally signed MIF of their handlers.  These entries are
+loaded in the order that the MIFs are loaded and parsed.
+handler MIFs->(extract)->registry entries->(when startup, populate into)->sys
+registry
+
+Registry values can also be updated at runtime.  There are fiew restrictions on
+which entries can be updated at runtime.  However, these updates are not
+persistent and need to be repeated, ifnecessary, each time the system is
+started.
+
+Queries return an AEECLSID, which is then used to obtain the associated
+implementation.
+
+*** Query example (escudo code)
+App invoke: Registry_Query("jpg", AEEIID_IMAGE)
+return: AEECLSID_JPEG
+App invoke: CreateInstance(AEECLSID_JPEG)
+
+*** MIME type
+All objects in Brew MP are stored in a binary resource file with the associated
+MIME Type string.
+An object resource always has a MIME type associated with it.
+MIME Type *registry entries* are specified through the *SysRsc primitive* in
+the CIF.
+
+* Inter-application communication
+
+** FIFO
+A system-level FIFO mechanism that allows processes to write to and read from
+named kernel memory buffers.
+
+Access control for the FIFO buffer is specified in the CIF through the
+*FIFO_ACL_Grand primitive*.
+
+** Local loopback sockets
+This mechanism employs the socket I/O paradigm with the data transmitted
+between applications and processes rather than over the network.
+
+As with FIFO buffers, the format of the data is private.
+
+** ISHELL_PostURL and ISHELL_BrowseURL
+Applications can asynchronously dispatch URLs to other applications by way of
+ISHELL_PostURL and ISHELL_BrowseURL.
+
+PostURL - queues an event which later causes the application to be loaded.  The
+application can then choose to start if desired.
+
+BrowseURL synchronously loads and starts the associated application with the
+URL.
+
+Brew MP supports a number of pre-defined URLs.
+
+* Security
+
+** User mode and kernel applications
+The *App Dispatcher framework* allows Brew MP to host applications in user mode.
+
+A user mode application runs in its own protected memory space.
+
+Programs running in user mode can only interact with other programs that are
+user mode accessible.
+
+All service classes are user mode accessible, though subject to privilege
+validation.
+
+Running applications in user mode requires that all APIs used by the
+application are supported in user mode in one of two manners:
+
+(1) In-process classes that are shared components (for example, Crypto)
+(2) Service classes that can be remotely invoked (for example, GPS)
+
+*** Current Brew MP support
+In Brew MP 1.0, not all service APIs are supported across process boundaries.
+
+A user mode application does not have access to the entire API set in Brew MP.
+Some APIs are not safe to use in user mode and are disabled.
+
+Existing Brew MP applications requiring services not currently supported in
+user mode are loaded into a shared kernel mode process.
+
+An application runs in kernel mode by default, unless the applications' MIF
+specifies running in user mode.
+
+*** Not all in-process classes are user-mode accessible.
+For an in-process class to be user mode accessible, it should meet the
+following criteria:
+
+(1) User-mode dependency ready: Any classes it depends on should either be
+*service classes* or other user-mode accessible in-process classes.
+
+(2) User mode reference ready: All the memory regions the object uses are
+negotiated by the OS for use in that process runtime.  This means no read and
+write references to non-const data of static storage classes, and no branches
+or static links to code that makes these references (which would indirectly
+make references to the non-const static variables).
+
+** Privileges and ACLs
+Brew MP's security model is based on least privileged execution.  Processes and
+applications can access only the services for which they have been granted
+access.
+
+Privileges are used to control access to APIs.  Brew MP provides Access Control
+Lists (ACLs), permitting modules to share access to their private directories.
+ACLs are used in an application to allow a given file or directory to be
+accessible to other applications.
+
+Privileges are dynamic.  New privileges can be defined and associated with any
+new interface.
+
+* Application UI model
+Brew MP implements a top visible application UI model, where only one
+application can draw directly to the display.
+
+Foreground App History Stack: One top visible app and several Suspended apps
+Background App History Stack: several background apps
+
+Only the top visible app draws to the display and receives user input events
+(keypad events and touch events).
+
+When the top-visible application is closed (EVT_APP_STOP), Brew MP resumes
+(EVT_APP_RESUME) the next previously suspended application.  If that
+application was unloaded, it is restarted.
+
+Applications can also place themselves in the background.  These applications
+are not in the foreground application history stack, and only come to the
+foreground if they are started.  They run in the background.
+
+See "Application Management and Technology Guide for Developers".
+
+* UI Widgets
+Each widget represents a visible element on the display, and lives inside of a
+container that manages the layout, z-ordering, focus, and event-routing for the
+widgets and other containers that it contains.
+
+** Draw cycle
+Widgets draw to the display through _a cooperative invalidate-draw cycle_.  When
+a widget needs to update its view, it invalidates its content.  The
+invalidation makes its way up through the container hierarchy until reaching
+the root container, at which point the *draw cycle* is initiated.
+
+The draw cycle controls which widgets draw their content, and in what order.
+It preserves *z-ordering* of all elements, and only redraws those widgets that
+need to be redrawn.
+
+Widgets represent the basic UI drawing model in Brew MP that is leveraged by
+the Brew MP window manager as well as the Flash and Trig application models.
+
+** MVC
+Brew UI Widgets are loosely based on a model-view-controller (MVC) pattern,
+which separates UI, controller logic, and data.  In many cases, widgets combine
+the view and controller in a single object, but keep a separate model.
+
+While widgets have default built-in and/or associated controllers to handle
+events, it is also possible to attach additional controllers (event handler) to
+a widget to perform custom logic.
+
+Some widgets are used with multiple different models to achieve different
+goals.  For example, *Frame Widget* can accept media frames from a camera
+viewfinder (CameraFrameModel), a video player (MediaFrameModel), or other
+source that provides frame-based data for playback.
+
+** Properties
+Widgets support properties that are exposed to controllers and applications
+through get/set methods.  Each widget supports properties that are specific to
+its function, in addition to common properties such as location and extent.
+The visual appearance of a widget can be vastly modified by changing its
+properties.
+
+See "Widgets Technology Guide".
+
+* Windowed application model
+The Brew MP *Window Manager* application allows multiple application to share
+the display.
+
+When using *windowed applications*, the Window Manager is the top-visible
+application and the windowed applications run in the background.
+
+Window Manager forwards user events to the window that currently has focus (for
+keypad events), or to the top-most window that was touched (for touch events).
+Non-user events(URLS, notifiers, etc.) are still sent to the windowed
+application's IApplet interface.
+
+** Draw
+Windowed applications draw cooperatively through the window manager application
+using Brew MP's widget draw cycle.  A window that needs to update invalidates
+itself rather than drawing directly to the display.
+
+The window's draw function is called by the window manager at the appropriate
+time to interleave the drawing with other windows in the system.
+
+See "Window Manager Technology Guide for Developers".
+
+* C/C++ application structure
+The default application framework created by the wizards is for MOD1/DLL1.
+
+** MOD1 project setup
+Entry point: IMod_New()
+e.g.
+int IMod_New(IEnv *piEnv, AEEIID iid, void** ppiModOut)
+
+CIFC generate the module IMod stub, as well as code to call individual classes'
+New() functions, eliminating the need to write your own module entry point.
+
+For MOD1:
+(1) The IEnv object is the first object provided to each class upon creation.
+(2) Rather than using AEEModGen.c, the CIF compiler (cifc.exe) generate code to
+provide the module entry point.
+(3) Only classes running inside the BREW Shell have access to the IShell
+object, and use it to discover and create other objects available in the
+system.
+(4) Heap memory is allocated via IEnv_ErrMalloc().
+(5) Avoid using AEEStdLib.h functions, including MALLOC, GETUPTIMEMS, and
+STRNCPY.  Some AEEStdLib.h functions can be replaced with functions from
+AEEStd.h.  Malloc can be replaced with IEnv_ErrMalloc().  Uptime functionality
+can be replaced with *ISysClock* functions.  Timer functionality is provided by
+*ISysTimer*.
+
+** MOD project setup
+Entry point: AEEMod_Load()
+e.g.
+int AEEMod_Load(IShell *piShell, void *ph, IModule **ppMod)
+
+Two helper files are included:
+AEEAppGen.c - Defines a Brew MP application and provides general application
+              functionality such as event handling.
+AEEModGen.c - Defines a Brew MP module, loads it in memory, and provides access
+              to the module.
+
+For MOD:
+(1) The IShell object is the first object provided to each class upon creation.
+(2) The IShell object is always available, and can be used to create and
+discovery other objects available in the system.
+(3) Both MALLOC() (from AEEStdLib) and IEnv_ErrMalloc() can be used to allocate
+heap memory.
+(4) MOD applications inherit IApplet, which provides a mechanism to the shell
+to pass events to an applet.
+
+** HandleEvent
+HandleEvent needs to be implemented when the class supports IApplet, which can
+be the case for both MOD and MOD1.
+
+See "MOD vs. MOD1 in Brew MP".
+
+* Coding
+** Application state machine framework
+In this state machine framework, each component, screen, or function of your
+application can be built as a state.  Each state can then be stacked with other
+states, allowing the application to move freely through the stack.
+
+* Data structures
+
+** API data structure types
+Structures and unions
+Enumerated types
+Constants
+
+** API helper functions
+
+*** Eliminate unnecessary linkage with the standard C library.
+So the size of the binary image can be reduced.
+AEE maintains a single copy of the standard C library.
+
+*** Eliminate static data in dynamic applications.
+Linkage to standard C library functions can introduce static data into an
+application, preventing it from being dynamically loadable.
+
+** BREW applet structure
+Interface pointer, large buffers, and global data should be included here.
+
+AEEApplet must be the first element in the structure.  Placing this element in
+the first position defines the address of the applet with the same address as
+the data structure for the applet.
+
+* Privileges
+Privileges imply rights or restrictions to access resource and/or objects such
+as memory access, CPU time, and platform services.
+
+Privileges are represented by 32-bit unique IDs (e.g. AEEPRIVID_XXX) and listed
+in the MIF.
+
+The kernel maintains the privileges list for each object in the system to
+ensure processes or applications can only access the objects to which they are
+given access.
+
+Access to services is controlled by *privilege sets* maintained in the kernel.
+A *privilege set* is an extensible array of 32-bit AEEPRIVID values.
+The AEEPRIVIDs correspond to privileges the requestor can obtain to gain access
+to certain resources.
+The privilege set for a process or application is contained in its digitally
+signed MIF.
+The kernel process establishes the privilege set for the process or application
+when it is loaded.
+
+** Acquiring/possessing Privileges
+
+*** For applet objects
+For applet objects to possess privileges, specify the following in the CIF:
+Applet{
+   ...
+   privs = {AEEPRIVID_XXX},
+}
+
+*** For service objects
+For service objects to possess privileges, the privileges come from the hosting
+process.
+If the service object is in the kernel process (Service.serverid = 0), it has
+the same privileges as the kernel.
+If it is in a particular server process (Server.serverid =
+AEECLSID_SERVERSOMETHNG) the server declaration is similar to the following:
+Server{
+   ...
+   privs = {AEEPRIVID_ZZZ},
+}
+
+*** For in-process objects
+For in-process objects to possess privileges, the privileges come from the
+caller.  Privileges aren't specified for in-process objects.
+
+** Requiring Privileges
+A service class or in-process class may require certain privileges that the
+caller must possess before they can be instantiated.
+
+*** For in-process class
+An in-process class can be declared to be a privileged class so that the caller
+must possess the in-process class's ClassID as its privilege before it can
+instantiate the object:
+Class{
+   ...
+   privileged = TRUE,
+}
+If the Class.privileged field does not exist in the declaration, no privileges
+are required to instantiate this in-process class.
+
+*** For service class
+A service class can be declared to require certain privileges so that the
+caller must possess one of those privileges before it can instantiate it.
+Service{
+   ...
+   required_privs = {AEEPRIVID_ABC, AEEPRIVID_EFG},
+}
+Service.required_privs = {0} designates that no privileges are required to
+instantiate this service.
+
+If the Service.required_privs field does not exist in the declaration, the
+service ID of the service becomes the default privilege the caller needs prior
+to instantiating the service.
+
+If the class specified by Service.servedclassid is a privileged class, the
+caller needs to possess its ClassID as its privilege prior to instantiating the
+service.
+
+*** References
+"Settings Technology Guide for Developers"
+The PrivLevel section of "Resource File and Markup Reference"
+AEEShell.h in "C/C++ API Reference" (System > Services > Privileges)
+the section on managing applets in the "Resource Manager Help" (also contained
+in the "Tool Reference")
+The privileges section of the "OS Services Technology Guide for Developers".
+
+* Event handling
+After an application is loaded, it receives all input via events.
+
+Note that as a simple event-driven environment, Brew MP demands that events are
+handled in a timely manner.
+
+Some events are required system events that must be handled by the application.
+System events include application startup and shutdown as well as telephone and
+SMS interruptions.  Failure to handle system events can cause the device to
+function improperly.
+
+** Event handling concepts
+BREW Shell (AEE Shell) <===> IApplet (IApplet_HandleEvent()) <===> applet
+IApplet is called by the shell in response to specific events.
+
+To send events to other applications, use ISHELL_SendEvent().
+
+** Event types
+
+*** Applet events (generated by the shell for applet control)
+EVT_APP_START
+EVT_APP_STOP
+EVT_APP_SUSPEND
+EVT_APP_RESUME
+EVT_BROWSE_URL
+EVT_APP_START_BACKGROUND
+EVT_APP_MESSAGE
+
+*** AEE Shell events
+EVT_NOTIFY
+EVT_ALARM
+
+*** Device events
+EVT_FLIP
+EVT_HEADSET
+EVT_KEYGUARD
+EVT_SCR_ROTATE
+
+*** User events
+User events are private to the application.  Developers and define their own
+private events within the range starting at EVT_USER.
+
+*** Touch events
+EVT_POINTER_DOWN
+EVT_POINTER_UP
+EVT_POINTER_MOVE
+EVT_POINTER_STALE_MOVE
+
+*** Special events
+EVT_APP_NO_SLEEP: sent to an applet after long periods in which the applet is
+running timers but the user is not interacting with the device.  Brew MP sends
+this event to the applet to check whether to allow the device to enter
+power-saving mode, usually at a slower clock rate.  Returning TRUE does not
+allow the phone to enter low power mode, results in shorter battery life.
+
+** Critical events
+Critical events received by an applet can't be ignored, regardless of the state
+of the applet.  Some events are not sent to the applet unless it specifically
+indicate that it wants such notifications.  Applets must register for thsese
+notification events either permanently in the MIF, or dynamically using
+ISHELL_RegisterNotify().
+
+EVT_APP_START
+EVT_APP_START_BACKGROUND
+EVT_APP_SUSPEND
+EVT_APP_RESUME
+EVT_APP_STOP
+
+The applet is closed if TRUE is not returned.
+
+** Event delegation flexibility
+Failure to return from IAPPLET_HandleEvent() methods can result in watchdog
+timeouts.
+
+See "Application Management Technology Guide for Developers".
+
+** Publish and subscribe design pattern
+Subscriber
+Publisher
+*Event registry*: a registration database, or system registry, is maintained by
+the system.  This registry records and maps each subscriber to the requested
+service publisher.  Other parameters can be registered to determine how the
+service is posted.
+
+See "Application Management Technology Guide for Developers".
+
+** Event registration
+The AEE Shell maintains an *event registry*.  Applets register themselves with
+the shell to receive specific events from specific publishers.
+
+** Event publish and dispatch
+The shell receives the events as native codes and then posts them to the event
+registry.  The registry then publishes the event to each subscribing service.
+
+The subscriber processes the event in the application's main event loop.
+
+** Key press events
+An application can determine if a key is being held by receiving notification
+that the EVT_KEY event is sent, then waiting for the EVT_KEY_RELEASE event.
+Along with pressing and releasing keys, applications can also respond when a
+key is pressed and held.
+
+wParam indicates which key was pressed.
+dwParam contains the bit modifier flags.
+
+*** A key press events sequence
+1. EVT_KEY_PRESS is sent when a key is pressed.
+2. When a key is held, multiple EVT_KEY events are sent.
+3. When a key is released, EVT_KEY is sent first, then EVT_KEY_RELEASE.
+
+* Suspend and resume
+Example that causes the top-visible app to be suspended:
+Low battery warning
+Incoming phone call
+Incoming non-BREW SMS message
+
+** Example: incoming call
+1. If app handles EVT_APP_SUSPEND, when the call ends, app receives
+   EVT_APP_RESUME.
+2. If app does not handle EVT_APP_SUSPEND, Brew MP sends EVT_APP_STOP to app.
+   When the call ends, Brew MP sends EVT_APP_START to app.
+
+** How to handle EVT_APP_SUSPEND?
+The following should take place:
+1. Cancel callback functions and timers.
+2. Stop animations.
+3. Release socket connections.
+4. Unload memory intensive resources.
+Note: Each carrier has different guidelines for how an application performs
+when it is suspended/resumed; refer to carrier guidelines for details.
+
+See "Application Management Technology Guide for Developers".
+
+* Signals, callbacks, timers and alarms
+Brew MP uses a single-threaded UI model that allows for cooperative
+multitasking on this thread.  Resources are limited on Brew MP devices, so this
+thread is monitored by an internal watchdog device to make sure function calls
+do not block the thread.  In Brew MP there are only separate threads for
+background thread applications.  Foreground UI applications are co-operative
+threaded.
+
+You can think of the foreground thread as a dispatch loop, where functions are
+passed to be processed and on very short intervals the return values are passed
+back to the calling function.  If a function makes a call that takes time to
+process, the watchdog timer shuts down the application.  This typically occurs
+after approximately 30 seconds.  To prevent this blocking situation, signals or
+callbacks can be used to monitor the dispatch loop for return of the calling
+function.  Applications must use non-blocking calls to avoid locking the
+device.  Signals or callbacks provide a mechanism for processing without
+blocking calls.
+
+** Signals
+Signals are notification objects sent within a process or across process
+boundaries that provide a method of inter-process communication.
+
+See "OS Services Technology Guide for Developers".
+
+** Callbacks
+A callback is executable code (a function) that is passed as an argument to
+other code, which allows one software component to call a function defined in
+another software component.  In Brew MP, it is used as a notification
+mechanism.
+
+*** Warning
+This mechanism is only suitable when it's safe to pass the callback function
+pointer to the registering function.
+
+** Timers
+Timers perform an action when a specific amount of time has passed.  These time
+periods are typically short (seconds or milliseconds).
+
+Timers are callback-based, and each timer is only triggered once.  Users must
+reset the timer if they want it to repeat.  This is usually done inside the
+callback function itself if a repeating timer is needed.
+
+The watchdog timer resets the device if functions don't return in a timely
+manner.
+
+*** AEE Shell's timer facility
+AEE Shell's timer facility is used by a currently instantiated application
+(that is, an application whose reference count is non zero) to perform an
+action when a specified amount of time has passed.
+
+The same timer and animation routine would automatically work on a faster CPU,
+without any recoding on your part.
+
+**** functions
+ISHELL_SetTimer()
+ISHELL_CancelTimer()
+ISHELL_GetTimerExpiration()
+
+*** ISysTimer
+For MOD1 applications, timer functionality is found in *ISysTimer*.
+
+** Alarms
+Alarms allow for notification when time reaches a specific value.  If an
+application is not running, Brew MP starts it, then sends it the alarm event.
+
+Alarms are typically used when the time of notification is in the distant
+future, such as calendar alarms.
+
+Each alarm only triggers once.
+
+*** AEE Shell's alarm functionality
+The AEE Shell's alarm functions enable an application to be notified when the
+current time reaches a specified value.
+
+Note that like timers, alarms do not repeat.
+
+**** functions
+ISHELL_SetAlarm(): More than one alarm can be set for an applet by specifying a 
+                   different 16-bit alarm nUserCode.
+ISHELL_CancelAlarm()
+ISHELL_SuspendAlarms()
+ISHELL_ResumeAlarms()
+
+** Using callbacks with timers
+ISHELL_SetTimer(pMe->piShell, TIMER_VAL, (PFNNOTIFY)MyFunc, pMe);
+ISHELL_CancelTimer(pMe->piShell, (PFNNOTIFY)MyFunc, pMe);
+
+All timers with the same data pointer can be canceled by passing NULL as the
+function pointer, as follows:
+ISHELL_CancelTimer(pMe->piShell, NULL, pMe);
+
+** AEECallback
+AEECallback is recommended over function pointers alone.
+AEECallback is a structure that contains a function pointer, a data pointer,
+and other bookkeeping data and this structure can be passed quite easily.
+Much of the bookkeeping data is instantiated by Brew MP and should not be
+directly accessed by your application.
+
+Note that this AEECallback structure should remain valid throughout the
+asynchronous request to ensure that the function pointer and data are available.
+
+* Notifications
+IShell's notification mechanism allows a Brew MP class to notify other classes
+that certain events have occurred.
+
+To receive a notification, a class must register its interest with the AEE
+Shell, specifying the ClassID of the notifier class and the events for which
+notification is desired.  When an event requiring a notification occurs, the
+notifier class calls ISHELL_Notify(), sending a notification to each class that
+has registered to be notified of the occurrence of that event.
+
+Notifications can come from system events or a notifying class such as ITimer.
+
+** Two ways to register
+1. In CIF/MIF, through the *Notifier primitive*.  This method of registering is
+   used by applications that must be notified of events even when they are not
+   running.  One example is a call-logging application that recives
+   notification of each incoming and outgoing call; such an application would
+   need to process notifications even while the user was not running the
+   application to display the call log.
+
+   For example:
+ISHELL_RegisterNotify(piShell, AEECLSID_MyApp, AEECLSID_DEVICENOTIFIER,
+                      NMASK_DEVICENOTIFIER_FLIP |
+		      NMASK_DEVICENOTIFIER_KEYGUARD |
+		      NMASK_DEVICENOTIFIER_SCR_ROTATE);
+
+2. If notification is required only at certain times while your application is
+   running, you can call ISHELL_RegisterNotify() to initiate event
+   notification.  For example, a game application might dislay a message when
+   an incoming text message arrives that would allow the user to open and read
+   the message or continue playing the game.
+   This approach can be used to notify when the BREW Shell is first initialized
+   by listening to a notification from AEECLSID_SHELL called NMASK_SHELL_INIT.
+
+   For example:
+Notifier{
+   clstype = AEECLSID_DEVICENOTIFIER,
+   clsnotify = AEECLSID_MyApp,
+   mask = NMASK_DEVICENOTIFIER_FLIP,
+}
+Notifier{
+   clstype = AEECLSID_DEVICENOTIFIER,
+   clsnotify = AEECLSID_MyApp,
+   mask = NMASK_DEVICENOTIFIER_KEYGUARD,
+}
+Notifier{
+   clstype = AEECLSID_DEVICENOTIFIER,
+   clsnotify = AEECLSID_MyApp,
+   mask = NMASK_DEVICENOTIFIER_SCR_ROTATE,
+}
+
+** Receiving Notifications
+For example:
+
+switch (eCode) {
+case EVT_NOTIFY:
+  if (dwParam) {
+    AEENotify *pNotify = (AEENotify *)dwParam;
+    AEEDeviceNotify *pDevNotify = NULL;
+    if (AEECLSID_DEVICENOTIFIER == pNotify->cls) {
+      if (NMASK_DEVICENOTIFIER_SCR_ROTATE | pNotify->dwMask) {
+        // pDevNotify->wParam is the same as that sent with EVT_SCR_ROTATE
+        // pDevNotify->dwParam is the same as that sent with EVT_SCR_ROTATE
+        pDevNotify = (AEEDevNotify *)pNotify->pData;
+      }
+      if (NMASK_DEVICENOTIFIER_FLIP | pNotify->dwMask) {
+        // pDevNotify->wParam is the same as that sent with EVT_FLIP
+        // pDevNotify->dwParam is the same as that sent with EVT_FLIP
+        pDevNotify = (AEEDevNotify *)pNotify->pData;
+      }
+    }
+  }
+  break;
+}
+
+** Sending Notifications
+ISHELL_Notify()
+
+See "Application Management Technology Guide for Developers".
+ISHELL_BrowseURL()
+ISHELL_PostURL()
+ISHELL_SendEvent()
+ISHELL_PostEvent()
+
+* Implementing classes
+Implementing
+  applet class
+  in-process class
+See "Programming Model for Developers".
+
+Implementing service classes
+See "Programming Model for Manufacturers".
+
+* Key APIs
+a
+
+ LocalWords:  APIs Crypto GPS emptive MIF API const ACLs MP's UI EVT MVC IApplet
+ LocalWords:  forwards IShell requestor CIF ClassID SMS AEE
